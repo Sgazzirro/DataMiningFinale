@@ -18,13 +18,18 @@ def create_time_series(labeled=True, mode="Collapsed", num_samples=150):
     ACTORS = np.linspace(1, 24, 24).astype(int)
 
     complete_dataset = pd.DataFrame()
-    for subject in ACTORS:
-        for activity_code in ACTIVITY_CODES:
-            for trial_code in TRIAL_CODES[activity_code]:
-                filename = '../LavorettiProvaDiMarco/A_DeviceMotion_data/'+activity_code+'_'+str(trial_code)+'/sub_'+str(int(subject))+'.csv'
+    #for subject in ACTORS:
+    #    for activity_code in ACTIVITY_CODES:
+    #        for trial_code in TRIAL_CODES[activity_code]:
+    for activity_code in ACTIVITY_CODES:
+        for trial_code in TRIAL_CODES[activity_code]:
+            for subject in ACTORS:
+                filename = 'A_DeviceMotion_data/'+activity_code+'_'+str(trial_code)+'/sub_'+str(int(subject))+'.csv'
+                print("Processing file: "+filename)
                 raw_data = pd.read_csv(filename)
-                raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw", "gravity.x",
-                                          "gravity.y", "gravity.z"], axis=1)
+                #raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw", "gravity.x",
+                 #                         "gravity.y", "gravity.z"], axis=1)
+                raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw"], axis=1)
                 if mode == "raw":
                     data_collapsed = raw_data
                 else:
@@ -45,6 +50,7 @@ def get_some_filter(complete_dataset, actors, act_labels):
 
 
 def preprocessing(dataframe):
+    dataframe = dataframe.fillna(dataframe.groupby('class').transform('mean'))
     new_dataset = dataframe.loc[(dataframe["subject"] != 5) | (dataframe["trial"] != 13)]
     only_numeric_dataset = new_dataset.drop(["trial", "subject"], axis=1)
     corr_matrix = only_numeric_dataset.corr().abs()

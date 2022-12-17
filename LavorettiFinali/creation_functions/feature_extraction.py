@@ -30,10 +30,18 @@ def compute_peaks(data):
     peaks=[]
     while len(peaks)<5:
         peaks=detecta.detect_peaks(y, mph=max_peak_height)
-        c+=5
+        c+=10
+        if c>=100:
+            break
         max_peak_height=np.amax(y)/c
+
     peaks_x=peaks/T
     peaks_y=y[peaks]
+
+    if(len(peaks_x)<5):
+        for i in range(0,5-len(peaks_x)):
+            peaks_x=np.append(peaks_x, np.nan)
+            peaks_y=np.append(peaks_y, np.nan)
 
     return peaks_x[0:5], peaks_y[0:5]
 
