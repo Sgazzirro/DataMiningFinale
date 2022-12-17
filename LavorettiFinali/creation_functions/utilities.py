@@ -54,4 +54,25 @@ def preprocessing(dataframe):
     return preprocessed_dataset
 
 
+def custom_cross_validation(dataframe, classifier):
+    a = range(1, 25)
+    permutation = np.random.permutation(a)
+    y_pred = []
+    y_true = []
+    for i in permutation:
+        X_train, X_test, y_train, y_test = get_a_split(dataframe,i)
+        y_true.append(y_test)
+        classifier.fit(X_train, y_train)
+        y_pred.append(classifier.predict(X_test))
+    return permutation, y_true, y_pred
+
+
+def get_a_split(dataframe, who_to_leave_out):
+    train_data = dataframe.loc[dataframe["subject"] != who_to_leave_out]
+    test_data = dataframe.loc[dataframe["subject"] == who_to_leave_out]
+    train_labels = train_data["class"]
+    test_labels = test_data["class"]
+    train_data = train_data.drop(["class", "subject", "trial"], axis=1)
+    test_data = test_data.drop(["class", "subject", "trial"], axis=1)
+    return train_data, test_data, train_labels, test_labels
 
