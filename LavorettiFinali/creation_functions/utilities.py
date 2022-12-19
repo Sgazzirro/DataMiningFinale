@@ -1,34 +1,69 @@
+import glob
 import pandas as pd
 import numpy as np
+from pyarrow import null
+
+
 from feature_extraction import extract_features
 
 
 def create_time_series(labeled=True, mode="Collapsed", num_samples=150):
+    complete_dataset = pd.DataFrame()
+
+    if mode == "phone":
+        all_files=glob.glob("honor20readings_complete/*", recursive=True)
+        for file in all_files:
+            print("Processing file: " + file)
+            raw_data = pd.read_csv(file)
+            label = raw_data.iloc[0]["class"]
+            raw_data = raw_data.drop("class", axis=1)
+            # re-ordering of the columns
+            raw_data = raw_data[["gravity.x", "gravity.y", "gravity.z", "rotationRate.x", "rotationRate.y",
+                                 "rotationRate.z", "userAcceleration.x", "userAcceleration.y", "userAcceleration.z"]]
+            data_collapsed = extract_features(raw_data, num_samples)
+            data_collapsed["class"] = label
+            complete_dataset = pd.concat((complete_dataset, data_collapsed), axis=0)
+        return complete_dataset
+
+    if mode == "phone_scaled":
+        all_files=glob.glob("honor20readings_complete/*", recursive=True)
+        for file in all_files:
+            print("Processing file: " + file)
+            raw_data = scale_readings(pd.read_csv(file))
+            raw_data = raw_data[["gravity.x", "gravity.y", "gravity.z", "rotationRate.x", "rotationRate.y",
+                                 "rotationRate.z", "userAcceleration.x", "userAcceleration.y", "userAcceleration.z", "class"]]
+            label = raw_data.iloc[0]["class"]
+            raw_data = raw_data.drop("class", axis=1)
+            data_collapsed = extract_features(raw_data, num_samples)
+            data_collapsed["class"] = label
+            complete_dataset = pd.concat((complete_dataset, data_collapsed), axis=0)
+        return complete_dataset
+
     ACTIVITY_CODES = ["dws", "jog", "sit", "std", "ups", "wlk"]
 
     TRIAL_CODES = {
-        ACTIVITY_CODES[0]:[1,2,11],
-        ACTIVITY_CODES[1]:[9,16],
-        ACTIVITY_CODES[2]:[5,13],
-        ACTIVITY_CODES[3]:[6,14],
-        ACTIVITY_CODES[4]:[3,4,12],
-        ACTIVITY_CODES[5]:[7,8,15]
+        ACTIVITY_CODES[0]: [1, 2, 11],
+        ACTIVITY_CODES[1]: [9, 16],
+        ACTIVITY_CODES[2]: [5, 13],
+        ACTIVITY_CODES[3]: [6, 14],
+        ACTIVITY_CODES[4]: [3, 4, 12],
+        ACTIVITY_CODES[5]: [7, 8, 15]
     }
 
     ACTORS = np.linspace(1, 24, 24).astype(int)
 
-    complete_dataset = pd.DataFrame()
-    #for subject in ACTORS:
+    # for subject in ACTORS:
     #    for activity_code in ACTIVITY_CODES:
     #        for trial_code in TRIAL_CODES[activity_code]:
     for activity_code in ACTIVITY_CODES:
         for trial_code in TRIAL_CODES[activity_code]:
             for subject in ACTORS:
-                filename = 'A_DeviceMotion_data/'+activity_code+'_'+str(trial_code)+'/sub_'+str(int(subject))+'.csv'
-                print("Processing file: "+filename)
+                filename = 'A_DeviceMotion_data/' + activity_code + '_' + str(trial_code) + '/sub_' + str(
+                    int(subject)) + '.csv'
+                print("Processing file: " + filename)
                 raw_data = pd.read_csv(filename)
-                #raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw", "gravity.x",
-                 #                         "gravity.y", "gravity.z"], axis=1)
+                # raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw", "gravity.x",
+                #                         "gravity.y", "gravity.z"], axis=1)
                 raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw"], axis=1)
                 if mode == "raw":
                     data_collapsed = raw_data
@@ -49,15 +84,16 @@ def get_some_filter(complete_dataset, actors, act_labels):
     return filtered_dataset
 
 
-def preprocessing(dataframe):
+def preprocessing(dataframe, to_drop=None):
     dataframe = dataframe.fillna(dataframe.groupby('class').transform('mean'))
-    new_dataset = dataframe.loc[(dataframe["subject"] != 5) | (dataframe["trial"] != 13)]
-    only_numeric_dataset = new_dataset.drop(["trial", "subject"], axis=1)
-    corr_matrix = only_numeric_dataset.corr().abs()
-    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-    to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
-    preprocessed_dataset = new_dataset.drop(to_drop, axis=1)
-    return preprocessed_dataset
+    if to_drop is None:
+        dataframe = dataframe.loc[(dataframe["subject"] != 5) | (dataframe["trial"] != 13)]
+        only_numeric_dataset = dataframe.drop(["trial", "subject"], axis=1)
+        corr_matrix = only_numeric_dataset.corr().abs()
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+    preprocessed_dataset = dataframe.drop(to_drop, axis=1)
+    return preprocessed_dataset, to_drop
 
 
 def custom_cross_validation(dataframe, classifier):
@@ -66,7 +102,7 @@ def custom_cross_validation(dataframe, classifier):
     y_pred = []
     y_true = []
     for i in permutation:
-        X_train, X_test, y_train, y_test = get_a_split(dataframe,i)
+        X_train, X_test, y_train, y_test = get_a_split(dataframe, i)
         y_true.append(y_test)
         classifier.fit(X_train, y_train)
         y_pred.append(classifier.predict(X_test))
@@ -82,3 +118,10 @@ def get_a_split(dataframe, who_to_leave_out):
     test_data = test_data.drop(["class", "subject", "trial"], axis=1)
     return train_data, test_data, train_labels, test_labels
 
+def scale_readings(df, phone = "honor"):
+    if phone=="honor":
+        df["rotationRate.z"]=df["rotationRate.z"].apply(lambda x: x*2)
+        df[["userAcceleration.x", "userAcceleration.y", "userAcceleration.z"]]=df[["userAcceleration.x", "userAcceleration.y", "userAcceleration.z"]].apply(lambda x: x/7)
+        df[["gravity.x", "gravity.y", "gravity.z"]]=df[["gravity.x", "gravity.y", "gravity.z"]].apply(lambda x: x/10)
+        df["gravity.y"]=df["gravity.y"].apply(lambda x:x*-1)
+    return df
