@@ -2,7 +2,7 @@ import glob
 import pandas as pd
 import numpy as np
 from pyarrow import null
-
+from sklearn.metrics import make_scorer, accuracy_score, recall_score, precision_score, f1_score
 
 from feature_extraction import extract_features
 
@@ -52,18 +52,12 @@ def create_time_series(labeled=True, mode="Collapsed", num_samples=150):
 
     ACTORS = np.linspace(1, 24, 24).astype(int)
 
-    # for subject in ACTORS:
-    #    for activity_code in ACTIVITY_CODES:
-    #        for trial_code in TRIAL_CODES[activity_code]:
     for activity_code in ACTIVITY_CODES:
         for trial_code in TRIAL_CODES[activity_code]:
             for subject in ACTORS:
                 filename = 'A_DeviceMotion_data/' + activity_code + '_' + str(trial_code) + '/sub_' + str(
                     int(subject)) + '.csv'
-                print("Processing file: " + filename)
                 raw_data = pd.read_csv(filename)
-                # raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw", "gravity.x",
-                #                         "gravity.y", "gravity.z"], axis=1)
                 raw_data = raw_data.drop(['Unnamed: 0', "attitude.pitch", "attitude.roll", "attitude.yaw"], axis=1)
                 if mode == "raw":
                     data_collapsed = raw_data
@@ -89,6 +83,7 @@ def preprocessing(dataframe, to_drop=None):
     if to_drop is None:
         dataframe = dataframe.loc[(dataframe["subject"] != 5) | (dataframe["trial"] != 13)]
         only_numeric_dataset = dataframe.drop(["trial", "subject"], axis=1)
+        only_numeric_dataset = only_numeric_dataset.drop_duplicates()
         corr_matrix = only_numeric_dataset.corr().abs()
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
         to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
@@ -109,6 +104,20 @@ def custom_cross_validation(dataframe, classifier):
     return permutation, y_true, y_pred
 
 
+def make_report(permutation, true_labels, predicted_labels):
+    report = pd.DataFrame()
+    for i in range(0, len(permutation)):
+        report = report.append({
+            "accuracy" : accuracy_score(true_labels[i], predicted_labels[i]),
+            "precision" : precision_score(true_labels[i], predicted_labels[i], average="weighted"),
+            "recall" : recall_score(true_labels[i], predicted_labels[i], average="weighted"),
+            "f1_score" : f1_score(true_labels[i], predicted_labels[i], average="weighted"),
+            "without_who" : permutation[i]
+        }, ignore_index=True
+        )
+    return report
+
+
 def get_a_split(dataframe, who_to_leave_out):
     train_data = dataframe.loc[dataframe["subject"] != who_to_leave_out]
     test_data = dataframe.loc[dataframe["subject"] == who_to_leave_out]
@@ -118,6 +127,7 @@ def get_a_split(dataframe, who_to_leave_out):
     test_data = test_data.drop(["class", "subject", "trial"], axis=1)
     return train_data, test_data, train_labels, test_labels
 
+
 def scale_readings(df, phone = "honor"):
     if phone=="honor":
         df["rotationRate.z"]=df["rotationRate.z"].apply(lambda x: x*2)
@@ -125,3 +135,4 @@ def scale_readings(df, phone = "honor"):
         df[["gravity.x", "gravity.y", "gravity.z"]]=df[["gravity.x", "gravity.y", "gravity.z"]].apply(lambda x: x/10)
         df["gravity.y"]=df["gravity.y"].apply(lambda x:x*-1)
     return df
+
