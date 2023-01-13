@@ -10,6 +10,6 @@ def have_a_look_at(dataframe, activity_code, signal, axis, num_actors=1, actors=
     data = get_some_filter(dataframe, actors, activity_code)
 
     for i in actors:
-        axis.plot(data.loc[data["subject"] == i][signal][100:300])
+        axis.plot(range(0, 200), data.loc[data["subject"] == i][signal][100:300])
         axis.legend(label)
         axis.set_title(activity_code[0])
