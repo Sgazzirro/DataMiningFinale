@@ -23,7 +23,7 @@ def create_time_series(labeled=True, mode="Collapsed", num_samples=150):
             data_collapsed = extract_features(raw_data, num_samples)
             data_collapsed["class"] = label
             complete_dataset = pd.concat((complete_dataset, data_collapsed), axis=0)
-        return complete_dataset
+        return complete_dataset.reset_index()
 
     if mode == "phone_scaled":
         all_files=glob.glob("honor20readings_complete/*", recursive=True)
@@ -78,17 +78,16 @@ def get_some_filter(complete_dataset, actors, act_labels):
     return filtered_dataset
 
 
-def preprocessing(dataframe, to_drop=None):
+def preprocessing(dataframe):
     dataframe = dataframe.fillna(dataframe.groupby('class').transform('mean'))
-    if to_drop is None:
-        dataframe = dataframe.loc[(dataframe["subject"] != 5) | (dataframe["trial"] != 13)]
-        only_numeric_dataset = dataframe.drop(["trial", "subject"], axis=1)
-        only_numeric_dataset = only_numeric_dataset.drop_duplicates()
-        corr_matrix = only_numeric_dataset.corr().abs()
-        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-        to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+    dataframe = dataframe.loc[(dataframe["subject"] != 5) | (dataframe["trial"] != 13)]
+    only_numeric_dataset = dataframe.drop(["trial", "subject"], axis=1)
+    only_numeric_dataset = only_numeric_dataset.drop_duplicates()
+    corr_matrix = only_numeric_dataset.corr().abs()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
     preprocessed_dataset = dataframe.drop(to_drop, axis=1)
-    return preprocessed_dataset, to_drop
+    return preprocessed_dataset
 
 
 def custom_cross_validation(dataframe, classifier):
